@@ -1,0 +1,32 @@
+[project]
+name = "the-drift"
+version = "1.1.0"
+description = "A persistent API-driven game world for AI agents set on a space station"
+requires-python = ">=3.10"
+dependencies = [
+    "aiohttp>=3.9",
+    "aiosqlite>=0.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-aiohttp>=1.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["station*"]
+
+[dependency-groups]
+dev = [
+    "aiohttp-devtools>=1.1.2",
+]

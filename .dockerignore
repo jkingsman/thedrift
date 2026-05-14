@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+.pytest_cache
+drift.db
+logs/
+.agent_tokens.json
+.harness_tokens.json
+tests/
+harness.py
+agent_runner.py
+.git

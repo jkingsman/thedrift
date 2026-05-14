@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Drift — Station Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0e17;
+    --card: #111827;
+    --border: #1e293b;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --accent: #38bdf8;
+    --accent2: #f472b6;
+    --green: #34d399;
+    --red: #f87171;
+    --orange: #fb923c;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --sans: system-ui, -apple-system, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #0f1729, var(--bg));
+  }
+
+  .header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    text-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+  }
+
+  .header-meta {
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .header-meta .val { color: var(--accent); font-weight: 600; }
+
+  .refresh-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    display: inline-block;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 16px 24px;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    overflow: hidden;
+  }
+
+  .card.full { grid-column: 1 / -1; }
+
+  .card h2 {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .card h2 .count {
+    background: var(--border);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  /* Price chart */
+  .chart-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .chart-controls select {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .chart-controls button {
+    background: var(--border);
+    color: var(--text-dim);
+    border: none;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .chart-controls button:hover,
+  .chart-controls button.active { background: var(--accent); color: var(--bg); }
+
+  .chart-wrap { position: relative; height: 300px; }
+
+  /* Sectors */
+  .sector-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .sector-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+  }
+
+  .sector-card .sector-name {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+
+  .sector-card .sector-bonus {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+
+  .sector-card .agent-count {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .sector-card .agent-list {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    word-break: break-all;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(56, 189, 248, 0.03); }
+
+  .num { text-align: right; }
+  .credits { color: var(--green); }
+  .rep-pos { color: var(--accent); }
+  .rep-neg { color: var(--red); }
+
+  /* Activity feed */
+  .feed { max-height: 400px; overflow-y: auto; }
+
+  .feed-item {
+    display: flex;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    align-items: baseline;
+  }
+
+  .feed-item:last-child { border-bottom: none; }
+
+  .feed-agent {
+    font-weight: 600;
+    color: var(--accent);
+    min-width: 100px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .feed-desc { color: var(--text); flex: 1; }
+
+  .feed-tick {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  /* Comms */
+  .comms-item {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .comms-item:last-child { border-bottom: none; }
+
+  .comms-meta {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    margin-bottom: 2px;
+  }
+
+  .comms-from {
+    font-weight: 600;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .comms-arrow { color: var(--text-dim); font-size: 11px; }
+
+  .comms-to {
+    font-weight: 600;
+    color: var(--accent2);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .comms-badge {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .comms-badge.broadcast { background: #a78bfa33; color: #a78bfa; }
+  .comms-badge.message { background: #38bdf833; color: #38bdf8; }
+
+  .comms-sector {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+
+  .comms-content {
+    color: var(--text);
+    font-style: italic;
+    padding-left: 4px;
+  }
+
+  .comms-time {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  /* Events */
+  .event-item {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .event-item:last-child { border-bottom: none; }
+
+  .event-type {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-right: 6px;
+  }
+
+  .event-type.solar_flare { background: #f59e0b33; color: #f59e0b; }
+  .event-type.cargo_drop { background: #34d39933; color: #34d399; }
+  .event-type.pirate_raid { background: #f8717133; color: #f87171; }
+  .event-type.price_crash { background: #f8717133; color: #f87171; }
+  .event-type.gold_rush { background: #fbbf2433; color: #fbbf24; }
+  .event-type.black_market_surge { background: #a78bfa33; color: #a78bfa; }
+  .event-type.power_outage { background: #64748b33; color: #94a3b8; }
+  .event-type.diplomatic_summit { background: #38bdf833; color: #38bdf8; }
+  .event-type.gravity_malfunction { background: #f472b633; color: #f472b6; }
+  .event-type.station_tax { background: #fb923c33; color: #fb923c; }
+
+  .event-desc { font-size: 13px; margin-top: 2px; }
+  .event-tick { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+
+  /* Contracts & Bounties */
+  .stat-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+
+  .stat-box {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    flex: 1;
+    text-align: center;
+  }
+
+  .stat-box .stat-val {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .stat-box .stat-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  /* Effects banner */
+  .effects-bar {
+    display: flex;
+    gap: 8px;
+    padding: 0 24px 0;
+    flex-wrap: wrap;
+  }
+
+  .effect-tag {
+    font-size: 11px;
+    font-family: var(--mono);
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: #f59e0b22;
+    border: 1px solid #f59e0b44;
+    color: #f59e0b;
+    animation: pulse 2s infinite;
+  }
+
+  /* Inventory expand */
+  .inv-toggle {
+    font-size: 11px;
+    color: var(--accent);
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-family: var(--mono);
+    padding: 0;
+  }
+  .inv-toggle:hover { text-decoration: underline; }
+
+  .inv-detail {
+    display: none;
+    padding: 4px 0 4px 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .inv-detail.open { display: block; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+    .sector-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>The Drift</h1>
+    <div class="header-meta">
+      <span>Tick <span class="val" id="tickNum">--</span></span>
+      <span>Agents <span class="val" id="agentCount">--</span></span>
+      <span><span class="refresh-dot"></span> Live</span>
+    </div>
+  </div>
+
+  <div class="effects-bar" id="effectsBar"></div>
+
+  <div class="grid">
+    <!-- Price History Chart -->
+    <div class="card full">
+      <h2>Market Prices</h2>
+      <div class="chart-controls">
+        <select id="categoryFilter">
+          <option value="raw">Raw Materials</option>
+          <option value="crafted">Crafted Items</option>
+          <option value="advanced">Advanced Items</option>
+          <option value="all">All Items</option>
+        </select>
+        <select id="itemFilter" multiple style="min-width:200px; height: 28px;"></select>
+      </div>
+      <div class="chart-wrap"><canvas id="priceChart"></canvas></div>
+    </div>
+
+    <!-- Sectors -->
+    <div class="card">
+      <h2>Station Sectors <span class="count" id="totalAgentsSectors">0</span></h2>
+      <div class="sector-grid" id="sectorGrid"></div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="card">
+      <h2>Leaderboard <span class="count">Net Worth</span></h2>
+      <div style="max-height:400px; overflow-y:auto;">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Agent</th><th>Sector</th><th class="num">Credits</th><th class="num">Inventory</th><th class="num">Net Worth</th><th class="num">Rep</th>
+          </tr></thead>
+          <tbody id="leaderboardBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="card">
+      <h2>Recent Activity <span class="count" id="activityCount">0</span></h2>
+      <div class="feed" id="activityFeed"></div>
+    </div>
+
+    <!-- World Events -->
+    <div class="card">
+      <h2>World Events</h2>
+      <div class="feed" id="eventsFeed"></div>
+    </div>
+
+    <!-- Comms -->
+    <div class="card">
+      <h2>Station Comms <span class="count" id="commsCount">0</span></h2>
+      <div class="feed" id="commsFeed"></div>
+    </div>
+
+    <!-- Contracts & Bounties -->
+    <div class="card">
+      <h2>Contracts</h2>
+      <div class="stat-row" id="contractStats"></div>
+      <table>
+        <thead><tr><th>Recipe</th><th>Proposer</th><th>Status</th></tr></thead>
+        <tbody id="contractsBody"></tbody>
+      </table>
+
+      <h2 style="margin-top:16px">Bounties</h2>
+      <div class="stat-row" id="bountyStats"></div>
+      <table>
+        <thead><tr><th>Description</th><th class="num">Reward</th><th>Type</th></tr></thead>
+        <tbody id="bountiesBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Current Prices Table -->
+    <div class="card">
+      <h2>Current Prices</h2>
+      <div style="max-height:400px; overflow-y:auto;">
+        <table>
+          <thead><tr><th>Item</th><th>Category</th><th class="num">Base</th><th class="num">Current</th><th class="num">Change</th></tr></thead>
+          <tbody id="pricesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script>
+const CHART_COLORS = [
+  '#38bdf8','#f472b6','#34d399','#fb923c','#a78bfa',
+  '#fbbf24','#f87171','#2dd4bf','#818cf8','#e879f9',
+  '#22d3ee','#a3e635','#f97316','#06b6d4','#8b5cf6',
+  '#ec4899','#14b8a6','#eab308','#ef4444','#6366f1',
+  '#10b981','#f59e0b','#84cc16','#d946ef','#0ea5e9',
+  '#e11d48','#7c3aed','#059669','#dc2626','#4f46e5',
+];
+
+let priceChart = null;
+let dashData = null;
+
+function createPriceChart() {
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  priceChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#94a3b8', font: { size: 11, family: "'JetBrains Mono', monospace" }, boxWidth: 12, padding: 10 }
+        },
+        tooltip: {
+          backgroundColor: '#1e293b',
+          titleColor: '#e2e8f0',
+          bodyColor: '#94a3b8',
+          borderColor: '#334155',
+          borderWidth: 1,
+          callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}` }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Tick', color: '#64748b', font: { size: 11 } },
+          ticks: { color: '#64748b', font: { size: 10 }, maxTicksLimit: 20 },
+          grid: { color: '#1e293b' }
+        },
+        y: {
+          title: { display: true, text: 'Price', color: '#64748b', font: { size: 11 } },
+          ticks: { color: '#64748b', font: { size: 10 } },
+          grid: { color: '#1e293b' }
+        }
+      }
+    }
+  });
+}
+
+function updatePriceChart() {
+  if (!dashData || !priceChart) return;
+
+  const category = document.getElementById('categoryFilter').value;
+  const ph = dashData.priceHistory;
+  const items = Object.keys(ph).filter(k => {
+    if (category === 'all') return true;
+    return ph[k].category === category;
+  }).filter(k => ph[k].history.length > 0);
+
+  // Build tick labels from union of all ticks
+  const tickSet = new Set();
+  items.forEach(k => ph[k].history.forEach(h => tickSet.add(h.tick)));
+  const ticks = Array.from(tickSet).sort((a, b) => a - b);
+
+  const datasets = items.map((k, i) => {
+    const priceMap = {};
+    ph[k].history.forEach(h => { priceMap[h.tick] = h.price; });
+    return {
+      label: ph[k].displayName,
+      data: ticks.map(t => priceMap[t] ?? null),
+      borderColor: CHART_COLORS[i % CHART_COLORS.length],
+      backgroundColor: CHART_COLORS[i % CHART_COLORS.length] + '22',
+      borderWidth: 1.5,
+      pointRadius: 0,
+      tension: 0.3,
+      spanGaps: true,
+    };
+  });
+
+  priceChart.data.labels = ticks;
+  priceChart.data.datasets = datasets;
+  priceChart.update('none');
+}
+
+function renderSectors(sectors) {
+  const el = document.getElementById('sectorGrid');
+  let total = 0;
+  el.innerHTML = sectors.map(s => {
+    total += s.agentCount;
+    const names = s.agents.map(a => a.name).join(', ') || 'Empty';
+    return `<div class="sector-card">
+      <div class="sector-name">${s.displayName}</div>
+      <div class="sector-bonus">${s.bonus}</div>
+      <div class="agent-count">${s.agentCount}</div>
+      <div class="agent-list">${names}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('totalAgentsSectors').textContent = total;
+}
+
+function renderLeaderboard(leaderboard, inventories) {
+  const el = document.getElementById('leaderboardBody');
+  el.innerHTML = leaderboard.map((a, i) => {
+    const repClass = a.reputation >= 0 ? 'rep-pos' : 'rep-neg';
+    const inv = inventories[a.name];
+    const invHtml = inv ? `<button class="inv-toggle" onclick="this.nextElementSibling.classList.toggle('open')">[inventory]</button>
+      <div class="inv-detail">${inv.map(x => `${x.qty}x ${x.item} (${x.value})`).join('<br>')}</div>` : '';
+    return `<tr>
+      <td>${i + 1}</td>
+      <td>${a.name}${invHtml}</td>
+      <td>${a.sector.replace(/_/g, ' ')}</td>
+      <td class="num credits">${a.credits}</td>
+      <td class="num">${a.inventoryValue}</td>
+      <td class="num credits">${a.netWorth}</td>
+      <td class="num ${repClass}">${a.reputation}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderActivity(activity) {
+  const el = document.getElementById('activityFeed');
+  document.getElementById('activityCount').textContent = activity.length;
+  el.innerHTML = activity.map(a =>
+    `<div class="feed-item">
+      <span class="feed-agent">${a.agentName}</span>
+      <span class="feed-desc">${a.description}</span>
+      <span class="feed-tick">T${a.tick}</span>
+    </div>`
+  ).join('');
+}
+
+function renderEvents(events) {
+  const el = document.getElementById('eventsFeed');
+  el.innerHTML = events.map(e =>
+    `<div class="event-item">
+      <span class="event-type ${e.eventType}">${e.eventType.replace(/_/g, ' ')}</span>
+      <span class="event-tick">T${e.tick}</span>
+      <div class="event-desc">${e.description}</div>
+    </div>`
+  ).join('');
+}
+
+function renderContracts(contracts) {
+  const s = contracts.summary;
+  document.getElementById('contractStats').innerHTML = `
+    <div class="stat-box"><div class="stat-val">${s.open || 0}</div><div class="stat-label">Open</div></div>
+    <div class="stat-box"><div class="stat-val">${s.active || 0}</div><div class="stat-label">Active</div></div>
+    <div class="stat-box"><div class="stat-val">${s.deciding || 0}</div><div class="stat-label">Deciding</div></div>
+  `;
+  document.getElementById('contractsBody').innerHTML = contracts.recent.map(c =>
+    `<tr><td>${c.recipe}</td><td>${c.proposer}</td><td>${c.status}</td></tr>`
+  ).join('') || '<tr><td colspan="3" style="color:var(--text-dim)">No active contracts</td></tr>';
+}
+
+function renderBounties(bounties) {
+  document.getElementById('bountyStats').innerHTML = `
+    <div class="stat-box"><div class="stat-val">${bounties.active}</div><div class="stat-label">Active</div></div>
+    <div class="stat-box"><div class="stat-val">${bounties.cooperativeActive}</div><div class="stat-label">Cooperative</div></div>
+    <div class="stat-box"><div class="stat-val">${bounties.totalRewards}</div><div class="stat-label">Total Rewards</div></div>
+  `;
+  document.getElementById('bountiesBody').innerHTML = bounties.top.map(b =>
+    `<tr><td>${b.description}</td><td class="num credits">${b.reward}</td><td>${b.cooperative ? 'Coop' : 'Solo'}</td></tr>`
+  ).join('') || '<tr><td colspan="3" style="color:var(--text-dim)">No active bounties</td></tr>';
+}
+
+function renderComms(comms) {
+  const el = document.getElementById('commsFeed');
+  document.getElementById('commsCount').textContent = comms.length;
+  el.innerHTML = comms.map(c => {
+    const badge = `<span class="comms-badge ${c.type}">${c.type}</span>`;
+    const target = c.to ? `<span class="comms-arrow">&rarr;</span><span class="comms-to">${c.to}</span>` : '';
+    const sector = c.sector ? `<span class="comms-sector">${c.sector.replace(/_/g, ' ')}</span>` : '';
+    const time = c.createdAt ? c.createdAt.replace('T', ' ').slice(0, 19) : '';
+    return `<div class="comms-item">
+      <div class="comms-meta">
+        ${badge}
+        <span class="comms-from">${c.from}</span>
+        ${target}
+        ${sector}
+        <span class="comms-time">${time}</span>
+      </div>
+      <div class="comms-content">"${c.content}"</div>
+    </div>`;
+  }).join('') || '<div style="color:var(--text-dim)">No recent comms</div>';
+}
+
+function renderPrices(priceHistory) {
+  const el = document.getElementById('pricesBody');
+  const items = Object.entries(priceHistory)
+    .map(([k, v]) => ({ name: k, ...v }))
+    .sort((a, b) => a.category.localeCompare(b.category) || a.displayName.localeCompare(b.displayName));
+
+  el.innerHTML = items.map(item => {
+    const base = parseFloat(item.basePrice);
+    const cur = parseFloat(item.currentPrice);
+    const pct = base > 0 ? ((cur - base) / base * 100) : 0;
+    const sign = pct >= 0 ? '+' : '';
+    const color = pct >= 0 ? 'var(--green)' : 'var(--red)';
+    return `<tr>
+      <td style="font-family:var(--sans)">${item.displayName}</td>
+      <td style="font-size:11px">${item.category}</td>
+      <td class="num">${item.basePrice}</td>
+      <td class="num" style="color:${color}">${item.currentPrice}</td>
+      <td class="num" style="color:${color}">${sign}${pct.toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderEffects(effects) {
+  const el = document.getElementById('effectsBar');
+  const entries = Object.entries(effects);
+  if (entries.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = entries.map(([k, v]) =>
+    `<span class="effect-tag">${k.replace(/_/g, ' ').toUpperCase()} (until tick ${v})</span>`
+  ).join('');
+}
+
+async function fetchData() {
+  try {
+    const resp = await fetch('/api/dashboard/data');
+    if (!resp.ok) return;
+    dashData = await resp.json();
+
+    document.getElementById('tickNum').textContent = dashData.tick;
+    document.getElementById('agentCount').textContent = dashData.agentCount;
+
+    renderEffects(dashData.activeEffects);
+    renderSectors(dashData.sectors);
+    renderLeaderboard(dashData.leaderboard, dashData.inventories);
+    renderActivity(dashData.activity);
+    renderEvents(dashData.events);
+    renderContracts(dashData.contracts);
+    renderBounties(dashData.bounties);
+    renderComms(dashData.comms);
+    renderPrices(dashData.priceHistory);
+    updatePriceChart();
+  } catch (err) {
+    console.error('Dashboard fetch failed:', err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof Chart !== 'undefined') {
+    createPriceChart();
+  }
+  document.getElementById('categoryFilter').addEventListener('change', updatePriceChart);
+  fetchData();
+  setInterval(fetchData, 30000);
+});
+</script>
+</body>
+</html>
